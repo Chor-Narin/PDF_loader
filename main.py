@@ -1,4 +1,5 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, Request
+from fastapi.responses import FileResponse
 from pypdf import PdfReader
 import requests
 import os
@@ -17,23 +18,23 @@ DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
 
 
 # ✅ Add middleware BEFORE anything else
-print("✅ CORS Middleware is active")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://127.0.0.1:5500",
-        "http://localhost:5500"
+        "http://localhost:5500",
+        "https://pdf-loader.onrender.com"
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-print("✅ CORS Middleware is active")
 
 
 @app.get("/")
-def read_root():
-    return {"message": "✅ FastAPI PDF → Notion uploader is running!"}
+async def read_root(request: Request):
+    return FileResponse('index.html', media_type='text/html')
+
 
 @app.post("/upload")
 async def upload_pdf(file: UploadFile = File(...)):
