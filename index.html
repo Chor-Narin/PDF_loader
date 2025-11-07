@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PDF → Notion Uploader</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#06b6d4;--muted:#9ca3af;--glass: rgba(255,255,255,0.03)}
+    *{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue","Noto Sans","Apple Color Emoji","Segoe UI Emoji";}
+    body{margin:0;min-height:100vh;background:linear-gradient(180deg,#061124 0%, #071428 100%);color:#e6eef6;display:flex;align-items:center;justify-content:center;padding:28px}
+    .card{width:100%;max-width:680px;background:var(--card);border-radius:12px;padding:24px;box-shadow:0 8px 30px rgba(2,6,23,0.6);border:1px solid var(--glass)}
+    h1{margin:0 0 6px;font-size:20px}
+    p.lead{margin:0 0 18px;color:var(--muted);font-size:13px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    label.custom-file{
+      display:block;background:rgba(255,255,255,0.02);padding:14px;border-radius:8px;cursor:pointer;border:1px dashed rgba(255,255,255,0.03);
+      flex:1;min-width:220px;text-align:center
+    }
+    input[type="file"]{display:none}
+    .btn{
+      background:var(--accent);color:#062023;border:none;padding:10px 14px;border-radius:8px;font-weight:600;cursor:pointer;
+      box-shadow:0 6px 18px rgba(6,182,212,0.12)
+    }
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .info{margin-top:14px;font-size:13px;color:var(--muted)}
+    .progress{height:10px;background:rgba(255,255,255,0.03);border-radius:999px;overflow:hidden;margin-top:12px}
+    .progress > i{display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--accent),#7dd3fc);transition:width .2s ease}
+    pre{background:#051122;padding:12px;border-radius:8px;margin-top:12px;white-space:pre-wrap;color:#9ee7f0;font-size:13px;overflow:auto}
+    .small{font-size:12px;color:var(--muted)}
+    footer{margin-top:18px;text-align:right;color:var(--muted);font-size:12px}
+  </style>
+</head>
+<body>
+  <main class="card" role="main">
+    <h1>PDF → Notion Uploader</h1>
+    <p class="lead">Select a PDF and upload it to your FastAPI endpoint (<code>POST /upload</code>).</p>
+
+    <div class="row">
+      <label class="custom-file" id="fileLabel">
+        <input id="fileInput" type="file" accept="application/pdf" />
+        <strong id="fileName">Click or drop a PDF</strong><br />
+        <span class="small">Only PDF files. Max size depends on your server configuration.</span>
+      </label>
+
+      <div style="display:flex;flex-direction:column;gap:10px;justify-content:center">
+        <button id="uploadBtn" class="btn" disabled>Upload</button>
+        <button id="clearBtn" class="btn" style="background:#15232b">Clear</button>
+      </div>
+    </div>
+
+    <div class="info" id="meta" style="display:none">
+      <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+      <div style="display:flex;justify-content:space-between;margin-top:8px">
+        <span id="percent">0%</span>
+        <span id="status" class="small">Waiting</span>
+      </div>
+    </div>
+
+    <pre id="response" aria-live="polite">No response yet.</pre>
+    <footer>Tip: serve this page from the same origin as your FastAPI app to avoid CORS issues.</footer>
+  </main>
+
+  <script>
+    const fileInput = document.getElementById('fileInput')
+    const fileName = document.getElementById('fileName')
+    const uploadBtn = document.getElementById('uploadBtn')
+    const clearBtn = document.getElementById('clearBtn')
+    const responseBox = document.getElementById('response')
+    const meta = document.getElementById('meta')
+    const bar = document.getElementById('bar')
+    const percent = document.getElementById('percent')
+    const status = document.getElementById('status')
+
+    let selectedFile = null
+
+    // Drag & drop
+    const label = document.getElementById('fileLabel')
+    ;['dragenter','dragover'].forEach(e => {
+      label.addEventListener(e, ev => { ev.preventDefault(); label.style.borderColor = '#0ea5a4' })
+    })
+    ;['dragleave','drop'].forEach(e => {
+      label.addEventListener(e, ev => { ev.preventDefault(); label.style.borderColor = 'rgba(255,255,255,0.03)' })
+    })
+
+    label.addEventListener('drop', ev => {
+      const f = ev.dataTransfer.files?.[0]
+      if (f) handleFile(f)
+    })
+
+    fileInput.addEventListener('change', ev => {
+      const f = ev.target.files?.[0]
+      if (f) handleFile(f)
+    })
+
+    function handleFile(f) {
+      if (!f) return
+      if (f.type !== 'application/pdf') {
+        alert('Please select a PDF file.')
+        return
+      }
+      selectedFile = f
+      fileName.textContent = `${f.name} — ${(f.size/1024|0)} KB`
+      uploadBtn.disabled = false
+      responseBox.textContent = 'Ready to upload: ' + f.name
+    }
+
+    clearBtn.addEventListener('click', () => {
+      selectedFile = null
+      fileInput.value = ''
+      fileName.textContent = 'Click or drop a PDF'
+      uploadBtn.disabled = true
+      responseBox.textContent = 'No response yet.'
+      meta.style.display = 'none'
+      bar.style.width = '0%'
+      percent.textContent = '0%'
+      status.textContent = 'Waiting'
+    })
+
+    uploadBtn.addEventListener('click', () => {
+      if (!selectedFile) return alert('Choose a PDF first.')
+      uploadFile(selectedFile)
+    })
+
+    function uploadFile(file) {
+      meta.style.display = 'block'
+      status.textContent = 'Uploading...'
+      const url = 'http://127.0.0.1:8000/upload'
+
+
+      const form = new FormData()
+      form.append('file', file, file.name)
+
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', url, true)
+
+      // show response from server
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4) {
+          try {
+            const json = JSON.parse(xhr.responseText)
+            responseBox.textContent = JSON.stringify(json, null, 2)
+          } catch (e) {
+            responseBox.textContent = xhr.responseText || `[HTTP ${xhr.status}]`
+          }
+          if (xhr.status >= 200 && xhr.status < 300) {
+            status.textContent = 'Upload complete'
+          } else {
+            status.textContent = 'Upload failed'
+          }
+        }
+      }
+
+      xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100)
+          bar.style.width = pct + '%'
+          percent.textContent = pct + '%'
+        }
+      }
+
+      xhr.onerror = function() {
+        status.textContent = 'Network error'
+        responseBox.textContent = 'Network error during upload.'
+      }
+
+      xhr.send(form)
+    }
+  </script>
+</body>
+</html>

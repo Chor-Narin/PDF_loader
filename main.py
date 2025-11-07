@@ -3,6 +3,7 @@ from pypdf import PdfReader
 import requests
 import os
 import io
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 # Load .env variables
@@ -13,6 +14,22 @@ app = FastAPI()
 # Get values from environment
 NOTION_TOKEN = os.getenv("NOTION_TOKEN")
 DATABASE_ID = os.getenv("NOTION_DATABASE_ID")
+
+
+# ✅ Add middleware BEFORE anything else
+print("✅ CORS Middleware is active")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:5500",
+        "http://localhost:5500"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+print("✅ CORS Middleware is active")
+
 
 @app.get("/")
 def read_root():
